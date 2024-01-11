@@ -145,10 +145,10 @@ async def ask(question: Question = Depends()):
     if question.rag:
         output_function = rag_chain
     result = output_function(
-        {"question": question.text, "chat_history": []}, callbacks=[]
+        {"query": question.text, "chat_history": []}, callbacks=[]
     )
 
-    return {"result": result["answer"], "model": llm_name}
+    return {"result": result["result"], "model": llm_name}
 
 
 @app.get("/generate-ticket")

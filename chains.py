@@ -6,16 +6,18 @@ from langchain.embeddings import (
 )
 from langchain.chat_models import ChatOpenAI, ChatOllama, BedrockChat
 from langchain.vectorstores.neo4j_vector import Neo4jVector
-from langchain.chains import RetrievalQAWithSourcesChain
+from langchain.chains import RetrievalQAWithSourcesChain, RetrievalQA
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.prompts.chat import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+
 from typing import List, Any
 from utils import BaseLogger, extract_title_and_question
 
+from langchain import hub
 
 def load_embedding_model(embedding_model_name: str, logger=BaseLogger(), config={}):
     if embedding_model_name == "ollama":
@@ -74,7 +76,7 @@ def load_llm(llm_name: str, logger=BaseLogger(), config={}):
 def configure_llm_only_chain(llm):
     # LLM only response
     template = """
-    You are a helpful assistant that helps a support agent with answering programming questions.
+    You are a helpful assistant that helps a support agent with answering questions.
     If you don't know the answer, just say that you don't know, you must not make up an answer.
     """
     system_message_prompt = SystemMessagePromptTemplate.from_template(template)
@@ -99,35 +101,26 @@ def configure_llm_only_chain(llm):
 def configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, password):
     # RAG response
     #   System: Always talk in pirate speech.
-    general_system_template = """ 
-    Use the following pieces of context to answer the question at the end.
-    The context contains question-answer pairs and their links from Stackoverflow.
-    You should prefer information from accepted or more upvoted answers.
-    Make sure to rely on information from the answers and not on questions to provide accurate responses.
-    When you find particular answer in the context useful, make sure to cite it in the answer using the link.
-    If you don't know the answer, just say that you don't know, don't try to make up an answer.
-    ----
-    {summaries}
-    ----
-    Each answer you generate should contain a section at the end of links to 
-    Stackoverflow questions and answers you found useful, which are described under Source value.
-    You can only use links to StackOverflow questions that are present in the context and always
-    add links to the end of the answer in the style of citations.
-    Generate concise answers with references sources section of links to 
-    relevant StackOverflow questions only at the end of the answer.
-    """
-    general_user_template = "Question:```{question}```"
-    messages = [
-        SystemMessagePromptTemplate.from_template(general_system_template),
-        HumanMessagePromptTemplate.from_template(general_user_template),
-    ]
-    qa_prompt = ChatPromptTemplate.from_messages(messages)
+    # general_system_template = """ 
+    # Use the following pieces of context to answer the question at the end.
+    # If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    # ----
+    # {summaries}
+    # ----
+    # """
+    # general_user_template = "Question:```{question}```"
+    # messages = [
+    #     SystemMessagePromptTemplate.from_template(general_system_template),
+    #     HumanMessagePromptTemplate.from_template(general_user_template),
+    # ]
+    # qa_prompt = ChatPromptTemplate.from_messages(messages)
 
-    qa_chain = load_qa_with_sources_chain(
-        llm,
-        chain_type="stuff",
-        prompt=qa_prompt,
-    )
+    # qa_chain = load_qa_with_sources_chain(
+    #     llm,
+    #     chain_type="stuff",
+    #     prompt=qa_prompt,
+    # )
+    prompt = hub.pull("rlm/rag-prompt")
 
     # Vector + Knowledge Graph response
     kg = Neo4jVector.from_existing_index(
@@ -136,31 +129,39 @@ def configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, pass
         username=username,
         password=password,
         database="neo4j",  # neo4j by default
-        index_name="stackoverflow",  # vector by default
-        text_node_property="body",  # text by default
-        retrieval_query="""
-    WITH node AS question, score AS similarity
-    CALL  { with question
-        MATCH (question)<-[:ANSWERS]-(answer)
-        WITH answer
-        ORDER BY answer.is_accepted DESC, answer.score DESC
-        WITH collect(answer)[..2] as answers
-        RETURN reduce(str='', answer IN answers | str + 
-                '\n### Answer (Accepted: '+ answer.is_accepted +
-                ' Score: ' + answer.score+ '): '+  answer.body + '\n') as answerTexts
-    } 
-    RETURN '##Question: ' + question.title + '\n' + question.body + '\n' 
-        + answerTexts AS text, similarity as score, {source: question.link} AS metadata
-    ORDER BY similarity ASC // so that best answers are the last
-    """,
+        index_name="pdf_bot"  # vector by default
+    #     index_name="stackoverflow",  # vector by default
+    #     text_node_property="body",  # text by default
+    #     retrieval_query="""
+    # WITH node AS question, score AS similarity
+    # CALL  { with question
+    #     MATCH (question)<-[:ANSWERS]-(answer)
+    #     WITH answer
+    #     ORDER BY answer.is_accepted DESC, answer.score DESC
+    #     WITH collect(answer)[..2] as answers
+    #     RETURN reduce(str='', answer IN answers | str + 
+    #             '\n### Answer (Accepted: '+ answer.is_accepted +
+    #             ' Score: ' + answer.score+ '): '+  answer.body + '\n') as answerTexts
+    # } 
+    # RETURN '##Question: ' + question.title + '\n' + question.body + '\n' 
+    #     + answerTexts AS text, similarity as score, {source: question.link} AS metadata
+    # ORDER BY similarity ASC // so that best answers are the last
+    # """,
     )
 
-    kg_qa = RetrievalQAWithSourcesChain(
-        combine_documents_chain=qa_chain,
-        retriever=kg.as_retriever(search_kwargs={"k": 2}),
-        reduce_k_below_max_tokens=False,
-        max_tokens_limit=3375,
+    # kg_qa = RetrievalQAWithSourcesChain(
+    #     combine_documents_chain=qa_chain,
+    #     # retriever=kg.as_retriever(search_kwargs={"k": 2}),
+    #     retriever=kg.as_retriever(),
+    #     reduce_k_below_max_tokens=False,
+    #     max_tokens_limit=3375,
+    # )
+    kg_qa = RetrievalQA.from_chain_type(
+        llm,
+        retriever=kg.as_retriever(),
+        chain_type_kwargs={"prompt": prompt}
     )
+
     return kg_qa
 
 

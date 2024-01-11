@@ -27,16 +27,17 @@ def extract_title_and_question(input_string):
 
 
 def create_vector_index(driver, dimension: int) -> None:
-    index_query = "CALL db.index.vector.createNodeIndex('stackoverflow', 'Question', 'embedding', $dimension, 'cosine')"
-    try:
-        driver.query(index_query, {"dimension": dimension})
-    except:  # Already exists
-        pass
-    index_query = "CALL db.index.vector.createNodeIndex('top_answers', 'Answer', 'embedding', $dimension, 'cosine')"
-    try:
-        driver.query(index_query, {"dimension": dimension})
-    except:  # Already exists
-        pass
+    # index_query = "CALL db.index.vector.createNodeIndex('stackoverflow', 'Question', 'embedding', $dimension, 'cosine')"
+    # try:
+    #     driver.query(index_query, {"dimension": dimension})
+    # except:  # Already exists
+    #     pass
+    # index_query = "CALL db.index.vector.createNodeIndex('top_answers', 'Answer', 'embedding', $dimension, 'cosine')"
+    # try:
+    #     driver.query(index_query, {"dimension": dimension})
+    # except:  # Already exists
+    #     pass
+    return
 
 
 def create_constraints(driver):
