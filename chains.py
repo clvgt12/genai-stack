@@ -80,7 +80,7 @@ def configure_llm_only_chain(llm):
     If you don't know the answer, just say that you don't know, you must not make up an answer.
     """
     system_message_prompt = SystemMessagePromptTemplate.from_template(template)
-    human_template = "{question}"
+    human_template = "{query}"
     human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
     chat_prompt = ChatPromptTemplate.from_messages(
         [system_message_prompt, human_message_prompt]
@@ -91,9 +91,9 @@ def configure_llm_only_chain(llm):
     ) -> str:
         chain = prompt | llm
         answer = chain.invoke(
-            {"question": user_input}, config={"callbacks": callbacks}
+            {"query": user_input}, config={"callbacks": callbacks}
         ).content
-        return {"answer": answer}
+        return {"result": answer}
 
     return generate_llm_output
 
