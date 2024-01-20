@@ -63,7 +63,7 @@ llm = load_llm(llm_name, logger=logger, config={"ollama_base_url": ollama_base_u
 def store_email_file_in_vectorstore(texts,url=os.environ["NEO4J_URI"],username=os.environ["NEO4J_USERNAME"],password=os.environ["NEO4J_PASSWORD"],destroy_information_flag=False):
         vectorstore = Neo4jVector.from_texts(
                 texts=texts, 
-                embedding=SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"), 
+                embedding=embeddings, 
                 url=url, 
                 username=username, 
                 password=password, 
@@ -77,7 +77,7 @@ def store_email_file_in_vectorstore(texts,url=os.environ["NEO4J_URI"],username=o
 imap_server = os.getenv("IMAP_SERVER")
 email_account = os.getenv("EMAIL_ACCOUNT")
 imap_password = os.getenv("IMAP_PASSWORD")
-address_book = json.dumps(os.getenv("ADDRESS_BOOK"))
+address_book = json.loads(os.getenv("ADDRESS_BOOK"))
 days_to_search = int(os.getenv("DAYS_TO_SEARCH"))
 
 def clean_text(text):
@@ -162,16 +162,7 @@ def process_email_file(email_filename):
     docs = text_splitter.split_text(texts)
     return(docs)
 
-def update_status_container(status,status_container):
-    # Update the output containers
-    status_container.text_area(
-        "Status", 
-        value=status, 
-        height=100, 
-        scrolling=True
-    )
-
-def process_email(imap_server, email_account, password, from_addresses, days, status_container):
+def process_email(imap_server, email_account, password, from_addresses, days):
 
     tmp_filepath="/tmp/SRRP_email"
     destroy_information_flag = True
@@ -185,9 +176,8 @@ def process_email(imap_server, email_account, password, from_addresses, days, st
     current_date = datetime.datetime.now()
     date_days_ago = (current_date - datetime.timedelta(days=days)).strftime("%d-%b-%Y")
     current_date = current_date.strftime("%d-%b-%Y")
-    update_status_container(
+    logger.info(
         f"Searching for email between {date_days_ago} and {current_date}\n",
-        status_container
     )
 
     mail_ids = []
@@ -197,14 +187,13 @@ def process_email(imap_server, email_account, password, from_addresses, days, st
         l = data[0].split()
         n = len(l)
         n_str = f"{n} number of" if (n>0) else "no"
-        update_status_container(
+        logger.info(
             f"{address} sent {n_str} emails...",
-            status_container
         )
         mail_ids.extend(l)
 
     total_emails = len(mail_ids)
-    update_status_container(f"\nTotal emails to process: {total_emails}\nNow vectorizing...\n")
+    logger.info(f"\nTotal emails to process: {total_emails}\nNow vectorizing...\n")
 
     # Process each email
     for i, num in enumerate(mail_ids, 1):  # Start counting from 1
@@ -223,9 +212,8 @@ def process_email(imap_server, email_account, password, from_addresses, days, st
         # Print the percent complete
         percent_complete = (i / total_emails) * 100
         if i % 10 == 0 or i == total_emails:
-            update_status_container(
+            logger.info(
                 f"Processed {i}/{total_emails} emails ({percent_complete:.2f}% complete)",
-                status_container
             )
 
     # Close connections
@@ -244,7 +232,6 @@ def main():
 
     # Initialize containers for the output
     response_container = StreamHandler(st.empty())
-    status_container = st.empty()
 
     # Logic to update output areas when the 'Run' button is clicked
     if run_button:
@@ -252,8 +239,7 @@ def main():
             imap_server, 
             email_account, imap_password, 
             address_book, 
-            days_to_search,
-            status_container
+            days_to_search
         )
 
 if __name__ == "__main__":

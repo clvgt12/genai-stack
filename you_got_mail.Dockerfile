@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements_you_got_mail.txt .
+COPY requirements.txt .
 
 # RUN pip install --upgrade -r requirements.txt
-RUN pip install -r requirements_you_got_mail.txt
+RUN pip install -r requirements.txt
 
 COPY you_got_mail.py .
 COPY utils.py .
