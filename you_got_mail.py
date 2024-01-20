@@ -1,80 +1,62 @@
-#!/usr/bin/env python
+import os
 
-#%pip install langchain langchain-community langchainhub langchain-openai neo4j tiktoken unstructured "unstructured[all-docs]" pdfplumber  beautifulsoup4 lxml python-docx
-
-
-from langchain import hub
-from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import UnstructuredEmailLoader
-from langchain_community.vectorstores import Neo4jVector
+import streamlit as st
+from langchain import hub  #new
+from langchain.chains import RetrievalQA
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.vectorstores.neo4j_vector import Neo4jVector
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain.embeddings import SentenceTransformerEmbeddings
+from streamlit.logger import get_logger
+from chains import (
+    load_embedding_model,
+    load_llm,
+)
+
+# Modules to support email application
+import email
+from email.parser import BytesParser
+from bs4 import BeautifulSoup
+import docx
+import json
+import pdfplumber
+import io
+import re
+import imaplib
+import datetime
+
+# load api key lib
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 
-# Define Documents and metadata objects
+url = os.getenv("NEO4J_URI")
+username = os.getenv("NEO4J_USERNAME")
+password = os.getenv("NEO4J_PASSWORD")
+ollama_base_url = os.getenv("OLLAMA_BASE_URL")
+embedding_model_name = os.getenv("EMBEDDING_MODEL")
+llm_name = os.getenv("LLM")
+# Remapping for Langchain Neo4j integration
+os.environ["NEO4J_URL"] = url
 
-class Document:
-    def __init__(self, page_content, metadata):
-        self.page_content = page_content
-        self.metadata = metadata
+logger = get_logger(__name__)
 
-    def __repr__(self):
-        return f"[Document(page_content={self.page_content}, metadata={self.metadata})]"
+embeddings, dimension = load_embedding_model(
+    embedding_model_name, config={"ollama_base_url": ollama_base_url}, logger=logger
+)
 
+class StreamHandler(BaseCallbackHandler):
+    def __init__(self, container, initial_text=""):
+        self.container = container
+        self.text = initial_text
 
-# Define Password Store class to interact with Unix utility password-store "pass"
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.text += token
+        self.container.markdown(self.text)
 
-import os
-import subprocess
-
-class PasswordStore():
-
-    def show(self, token: str, **kwargs) -> None:
-        try:
-            # Run the pass command and capture the output
-            result = subprocess.run(['pass', 'show', token], 
-                                    check=True, 
-                                    stdout=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE, 
-                                    text=True)
-            
-            # Extract the API key from the output
-            result = result.stdout.strip()
-            return result
-        except subprocess.CalledProcessError as e:
-            # Handle errors if the command fails
-            print(f"PasswordStore.show(): Error occurred: {e.stderr}")
-            return None
-
-# Use the function to get the API key
-pwdstore = PasswordStore()
-os.environ["OPENAI_API_KEY"] = pwdstore.show('OpenAI/openai_api_key')
-
-
-# ```
-# docker run \
-#     --name neo4j \
-#     -p 7474:7474 -p 7687:7687 \
-#     -d \
-#     -e NEO4J_AUTH=neo4j/password \
-#     neo4j:5.11
-# ```
-
-# Neo4jVector requires the Neo4j database credentials
-
-# url = "bolt://localhost:7687"
-# username = "neo4j"
-# password = "password"
-
-# You can also use environment variables instead of directly passing named parameters
-os.environ["NEO4J_URI"] = "bolt://localhost:7687"
-os.environ["NEO4J_USERNAME"] = "neo4j"
-os.environ["NEO4J_PASSWORD"] = "password"
-
-
-# Store processed email file in the vector store
+llm = load_llm(llm_name, logger=logger, config={"ollama_base_url": ollama_base_url})
 
 # The Neo4jVector Module will connect to Neo4j and create a vector index if needed.
 
@@ -91,37 +73,18 @@ def store_email_file_in_vectorstore(texts,url=os.environ["NEO4J_URI"],username=o
         )
         return(vectorstore)
 
-
-# Return a reference to the existing vectorstore
-
-def get_vectorstore(url=os.environ["NEO4J_URI"],username=os.environ["NEO4J_USERNAME"],password=os.environ["NEO4J_PASSWORD"],destroy_information_flag=False):
-        vectorstore = Neo4jVector.from_existing_index(
-                embedding=SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"), 
-                url=url, 
-                username=username, 
-                password=password, 
-                index_name="SRRP_email", 
-                node_label="SRRP_email",
-                pre_delete_collection=destroy_information_flag  # Delete existing data? True or False
-        )
-        return(vectorstore)
-
-
-# Load, parse and split specified email file
-# 
-# First try to process any attachments.  If an error is trapped, then process without
-
-import email
-from email.parser import BytesParser
-from bs4 import BeautifulSoup
-import docx
-import json
-import pdfplumber
-import io
-import re
+# Support IMAP application
+imap_server = os.getenv("IMAP_SERVER")
+email_account = os.getenv("EMAIL_ACCOUNT")
+imap_password = os.getenv("IMAP_PASSWORD")
+address_book = json.dumps(os.getenv("ADDRESS_BOOK"))
+days_to_search = int(os.getenv("DAYS_TO_SEARCH"))
 
 def clean_text(text):
-    return(re.sub(r'[^(\w\s)]', '', text))
+    non_ascii_pattern = re.compile(r'[^\x00-\x7F]+')
+    text = re.sub(non_ascii_pattern, '', text).replace('\t', ' ').replace('\n', ' ').replace('\\t', ' ').replace('\\n', ' ')
+    text = re.sub(r'\s+',' ',text)
+    return(text)
 
 def docx2text(docx_bytes):
     """
@@ -199,12 +162,16 @@ def process_email_file(email_filename):
     docs = text_splitter.split_text(texts)
     return(docs)
 
-# Connect to IMAP email server, download email from SRRP team members
+def update_status_container(status,status_container):
+    # Update the output containers
+    status_container.text_area(
+        "Status", 
+        value=status, 
+        height=100, 
+        scrolling=True
+    )
 
-import imaplib
-import datetime
-
-def dump_email_to_file(imap_server, email_account, password, from_addresses, days):
+def process_email(imap_server, email_account, password, from_addresses, days, status_container):
 
     tmp_filepath="/tmp/SRRP_email"
     destroy_information_flag = True
@@ -215,16 +182,29 @@ def dump_email_to_file(imap_server, email_account, password, from_addresses, day
     mail.select('inbox')
 
     # Calculate the date X days ago
-    date_days_ago = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%d-%b-%Y")
+    current_date = datetime.datetime.now()
+    date_days_ago = (current_date - datetime.timedelta(days=days)).strftime("%d-%b-%Y")
+    current_date = current_date.strftime("%d-%b-%Y")
+    update_status_container(
+        f"Searching for email between {date_days_ago} and {current_date}\n",
+        status_container
+    )
 
     mail_ids = []
     for address in from_addresses:
         # Search emails from a specific address since the date
         _, data = mail.search(None, f'(FROM "{address}" SINCE "{date_days_ago}")')
-        mail_ids.extend(data[0].split())
+        l = data[0].split()
+        n = len(l)
+        n_str = f"{n} number of" if (n>0) else "no"
+        update_status_container(
+            f"{address} sent {n_str} emails...",
+            status_container
+        )
+        mail_ids.extend(l)
 
     total_emails = len(mail_ids)
-    print(f"Total emails to process: {total_emails}")
+    update_status_container(f"\nTotal emails to process: {total_emails}\nNow vectorizing...\n")
 
     # Process each email
     for i, num in enumerate(mail_ids, 1):  # Start counting from 1
@@ -243,7 +223,10 @@ def dump_email_to_file(imap_server, email_account, password, from_addresses, day
         # Print the percent complete
         percent_complete = (i / total_emails) * 100
         if i % 10 == 0 or i == total_emails:
-            print(f"Processed {i}/{total_emails} emails ({percent_complete:.2f}% complete)")
+            update_status_container(
+                f"Processed {i}/{total_emails} emails ({percent_complete:.2f}% complete)",
+                status_container
+            )
 
     # Close connections
     mail.logout()
@@ -251,162 +234,27 @@ def dump_email_to_file(imap_server, email_account, password, from_addresses, day
     # Return reference to the vectorstore
     return(vectorstore)
 
-# Usage example
-imap_password = pwdstore.show('Email/cvitalos@yahoo.com/imap')
-from_addresses = ["guitarduo@verizon.net", "WardenA68@yahoo.com", "jamesmespo@gmail.com", "sahare0515@gmail.com", "julia@njhighlandscoalition.org", 
-                    "elliot@njhighlandscoalition.org", "kdolsky@optonline.net", "ssolaun@gmail.com", "bobmossnj@verizon.net"]
-vectorstore = dump_email_to_file('imap.mail.yahoo.com', 'cvitalos@yahoo.com', imap_password, from_addresses, 90)
+def main():
 
-# Now use a prompting technique, and feed the result through a LLM
+    st.header("📄You Got Mail!")
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+    # Create a text input box and a button
+    run_button = st.button("Run", key="Run")
+    query = st.text_input("Query", key="Query")
 
-retriever = vectorstore.as_retriever()
+    # Initialize containers for the output
+    response_container = StreamHandler(st.empty())
+    status_container = st.empty()
 
-template = """Answer the question based only on the following context:
-{context}
+    # Logic to update output areas when the 'Run' button is clicked
+    if run_button:
+        vectorstore = process_email(
+            imap_server, 
+            email_account, imap_password, 
+            address_book, 
+            days_to_search,
+            status_container
+        )
 
-Question: {question}
-"""
-prompt = ChatPromptTemplate.from_template(template)
-
-model = ChatOpenAI()
-
-chain = (
-    {"context": retriever, "question": RunnablePassthrough()}
-    | prompt
-    | model
-    | StrOutputParser()
-)
-
-# Conversational Retrieval Chain
-# 
-# Add in conversation history. This primarily means adding in chat_message_history
-# 
-
-from operator import itemgetter
-
-from langchain.schema import format_document
-from langchain_core.messages import AIMessage, HumanMessage, get_buffer_string
-from langchain_core.runnables import RunnableParallel
-
-from langchain.prompts.prompt import PromptTemplate
-
-_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
-
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question:"""
-CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
-
-template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-"""
-ANSWER_PROMPT = ChatPromptTemplate.from_template(template)
-
-DEFAULT_DOCUMENT_PROMPT = PromptTemplate.from_template(template="{page_content}")
-
-def _combine_documents(
-    docs, document_prompt=DEFAULT_DOCUMENT_PROMPT, document_separator="\n\n"
-):
-    doc_strings = [format_document(doc, document_prompt) for doc in docs]
-    return document_separator.join(doc_strings)
-
-_inputs = RunnableParallel(
-    standalone_question=RunnablePassthrough.assign(
-        chat_history=lambda x: get_buffer_string(x["chat_history"])
-    )
-    | CONDENSE_QUESTION_PROMPT
-    | ChatOpenAI(temperature=0)
-    | StrOutputParser(),
-)
-_context = {
-    "context": itemgetter("standalone_question") | retriever | _combine_documents,
-    "question": lambda x: x["standalone_question"],
-}
-# conversational_qa_chain = _inputs | _context | ANSWER_PROMPT | ChatOpenAI()
-
-# conversational_qa_chain.invoke(
-#     {
-#         "question": query,
-#         "chat_history": [],
-#     }
-# )
-
-# With Memory and returning source documents
-
-from operator import itemgetter
-
-from langchain.memory import ConversationBufferMemory
-
-memory = ConversationBufferMemory(
-    return_messages=True, output_key="answer", input_key="question"
-)
-
-# First we add a step to load memory
-# This adds a "memory" key to the input object
-loaded_memory = RunnablePassthrough.assign(
-    chat_history=RunnableLambda(memory.load_memory_variables) | itemgetter("history"),
-)
-# Now we calculate the standalone question
-standalone_question = {
-    "standalone_question": {
-        "question": lambda x: x["question"],
-        "chat_history": lambda x: get_buffer_string(x["chat_history"]),
-    }
-    | CONDENSE_QUESTION_PROMPT
-    | ChatOpenAI(temperature=0)
-    | StrOutputParser(),
-}
-# Now we retrieve the documents
-retrieved_documents = {
-    "docs": itemgetter("standalone_question") | retriever,
-    "question": lambda x: x["standalone_question"],
-}
-# Now we construct the inputs for the final prompt
-final_inputs = {
-    "context": lambda x: _combine_documents(x["docs"]),
-    "question": itemgetter("question"),
-}
-# And finally, we do the part that returns the answers
-answer = {
-    "answer": final_inputs | ANSWER_PROMPT | ChatOpenAI(),
-    "docs": itemgetter("docs"),
-}
-# And now we put it all together!
-final_chain = loaded_memory | standalone_question | retrieved_documents | answer
-
-def ask_question(question, final_chain):
-    inputs = {"question": question}
-    result = final_chain.invoke(inputs)
-    return(result)
-
-def save_memory(memory, question, result):
-    memory.save_context({"question": question}, {"answer": result["answer"].content})
-    memory.load_memory_variables({})
-    return(memory)
-
-question = "Describe what is known about the October 27th meeting"
-result = ask_question(question, final_chain)
-memory = save_memory(memory, question, result)
-print(result)
-
-question = "Identify who attended the Oct 27th meeting, and who did not"
-result = ask_question(question, final_chain)
-memory = save_memory(memory, question, result)
-print(result)
-
-question = "Describe what was the outcome taken by the commissioners during the October 27th meeting"
-result = ask_question(question, final_chain)
-memory = save_memory(memory, question, result)
-print(result)
-
-question = "Identify any discussion in the email threads regarding logging at Merrill Creek - also known as MC"
-result = ask_question(question, final_chain)
-memory = save_memory(memory, question, result)
-print(result)
+if __name__ == "__main__":
+    main()
