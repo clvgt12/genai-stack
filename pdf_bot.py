@@ -95,7 +95,9 @@ def main():
 
         if query:
             stream_handler = StreamHandler(st.empty())
-            qa.run(query, callbacks=[stream_handler])
+            logger.info(f"Query: {query}")
+            response = qa.run(query, callbacks=[stream_handler])
+            logger.info(f"Response: {response}")
 
 
 if __name__ == "__main__":
