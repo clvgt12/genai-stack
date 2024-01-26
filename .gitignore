@@ -4,4 +4,4 @@ embedding_model/*
 !embedding_model/.ignore
 .DS_Store
 experiments/*
-text.txt
+test.txt
