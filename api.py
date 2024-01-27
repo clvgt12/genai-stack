@@ -127,7 +127,7 @@ def qstream(question: Question = Depends()):
 
     def cb():
         output_function(
-            {"question": question.text, "chat_history": []},
+            {"query": question.text, "chat_history": []},
             callbacks=[QueueCallback(q)],
         )
 
