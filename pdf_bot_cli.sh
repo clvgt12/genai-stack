@@ -23,7 +23,7 @@ function _urlencode() {
 # _parse_response()
 # Parse the passed JSON object, return the value of object with the key 'result'
 function _parse_response() {
-    perl -MJSON -0777 -e 'print ">> ",decode_json(<>)->{result},"\n\n"' <<< "$1"
+    perl -MJSON -0777 -e 'print decode_json(<>)->{result},"\n\n"' <<< "$1"
 }
 
 
@@ -31,10 +31,11 @@ function _parse_response() {
 # Process a single query
 function _process_query() {
     local endpoint="$1"
-    local query="$2"
+    local query="$2"; 
+    local echo="$3"
+    if [[ "$echo" = "Y" ]]; then echo "$query"; fi; echo -n '>> '
     local encoded_query=$(_urlencode "$query")
     local response=$(curl -s "$endpoint/query?text=$encoded_query&rag=true")
-    echo "$query"
     _parse_response "$response"
 }
 
@@ -64,7 +65,7 @@ function main() {
         # Read and process each line from the file
         while IFS= read -r line; do
             echo -n "> "
-            _process_query "$endpoint" "$line"
+            _process_query "$endpoint" "$line" "Y"
         done < "$query_file"
     else
         # Default behavior: read queries from standard input
@@ -74,7 +75,7 @@ function main() {
                 echo "EOF"
                 break
             fi
-            _process_query "$endpoint" "$query"
+            _process_query "$endpoint" "$query" "N"
         done
     fi
 }
