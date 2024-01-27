@@ -42,7 +42,7 @@ function _process_query() {
 # Main function to process command-line arguments and run the script
 function main() {
     local query_file=""
-    local endpoint="http://localhost:8503"
+    local endpoint="http://localhost:8504"
     while getopts "e:f:" opt; do
         case $opt in
             e) endpoint="$OPTARG" ;;
