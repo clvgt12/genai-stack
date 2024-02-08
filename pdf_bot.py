@@ -4,15 +4,16 @@ import io
 import streamlit as st
 from langchain.chains import RetrievalQA
 from PyPDF2 import PdfReader
-from docx import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.vectorstores.neo4j_vector import Neo4jVector
+from langchain_community.vectorstores import Neo4jVector
 from streamlit.logger import get_logger
 from chains import (
     load_embedding_model,
     load_llm,
 )
+
+from docx import Document
 
 # load api key lib
 from dotenv import load_dotenv
