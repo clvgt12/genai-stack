@@ -21,7 +21,7 @@ from langchain.prompts import (
     SystemMessagePromptTemplate
 )
 
-from langchainhub import hub
+from langchain import hub
 from typing import List, Any
 from utils import BaseLogger, extract_title_and_question
 

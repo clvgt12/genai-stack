@@ -16,5 +16,6 @@ boto3
 # missing from the langchain base image?
 langchain-openai
 langchain-community
+langchain
 langchainhub
 python-docx
