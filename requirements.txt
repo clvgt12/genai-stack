@@ -1,4 +1,4 @@
-openai==0.28.1
+openai
 python-dotenv
 tiktoken
 neo4j
@@ -12,10 +12,12 @@ pydantic
 uvicorn
 sse-starlette
 boto3
-langchain
-langchain-community
-langchainhub
 beautifulsoup4
-lxml
+# missing from the langchain base image?
+langchain-openai
+langchain-community
+langchain
+langchainhub
 python-docx
 pdfplumber
+lxml

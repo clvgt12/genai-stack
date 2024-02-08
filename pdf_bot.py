@@ -1,16 +1,19 @@
 import os
+import io
 
 import streamlit as st
 from langchain.chains import RetrievalQA
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.vectorstores.neo4j_vector import Neo4jVector
+from langchain_community.vectorstores import Neo4jVector
 from streamlit.logger import get_logger
 from chains import (
     load_embedding_model,
     load_llm,
 )
+
+from docx import Document
 
 # load api key lib
 from dotenv import load_dotenv
@@ -49,17 +52,22 @@ llm = load_llm(llm_name, logger=logger, config={"ollama_base_url": ollama_base_u
 
 
 def main():
-    st.header("📄Chat with your pdf file")
+    st.header("📄Chat with your document")
 
     # upload a your pdf file
-    pdf = st.file_uploader("Upload your PDF", type="pdf")
+    doc = st.file_uploader("Upload your PDF or DOCX:", type=["docx","pdf"])
 
-    if pdf is not None:
-        pdf_reader = PdfReader(pdf)
+    if doc is not None:
 
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        file_type = doc.name.split(".")[-1].lower()
+        if file_type == 'pdf':
+            pdf_reader = PdfReader(doc)
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        elif file_type == 'docx':
+            msword = Document(io.BytesIO(doc.read()))
+            text = '\n'.join([paragraph.text for paragraph in msword.paragraphs])
 
         # langchain_textspliter
         text_splitter = RecursiveCharacterTextSplitter(
@@ -84,11 +92,13 @@ def main():
         )
 
         # Accept user questions/query
-        query = st.text_input("Ask questions about your PDF file")
+        query = st.text_input("Ask questions about your document")
 
         if query:
             stream_handler = StreamHandler(st.empty())
-            qa.run(query, callbacks=[stream_handler])
+            logger.info(f"Query: {query}")
+            response = qa.run(query, callbacks=[stream_handler])
+            logger.info(f"Response: {response}")
 
 
 if __name__ == "__main__":

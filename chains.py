@@ -1,23 +1,30 @@
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.embeddings import (
-    OllamaEmbeddings,
-    SentenceTransformerEmbeddings,
-    BedrockEmbeddings,
-)
-from langchain.chat_models import ChatOpenAI, ChatOllama, BedrockChat
-from langchain.vectorstores.neo4j_vector import Neo4jVector
-from langchain.chains import RetrievalQAWithSourcesChain, RetrievalQA
+
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
+
+from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatOllama
+from langchain_community.chat_models import BedrockChat
+
+from langchain_community.graphs import Neo4jGraph
+
+from langchain_community.vectorstores import Neo4jVector
+
+from langchain.chains import RetrievalQAWithSourcesChain,RetrievalQA
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
-from langchain.prompts.chat import (
+
+from langchain.prompts import (
     ChatPromptTemplate,
-    SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate
 )
 
+from langchain import hub
 from typing import List, Any
 from utils import BaseLogger, extract_title_and_question
 
-from langchain import hub
 
 def load_embedding_model(embedding_model_name: str, logger=BaseLogger(), config={}):
     if embedding_model_name == "ollama":

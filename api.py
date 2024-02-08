@@ -1,6 +1,6 @@
 import os
 
-from langchain.graphs import Neo4jGraph
+from langchain_community.graphs import Neo4jGraph
 from dotenv import load_dotenv
 from utils import (
     create_vector_index,
@@ -127,7 +127,7 @@ def qstream(question: Question = Depends()):
 
     def cb():
         output_function(
-            {"question": question.text, "chat_history": []},
+            {"query": question.text, "chat_history": []},
             callbacks=[QueueCallback(q)],
         )
 
