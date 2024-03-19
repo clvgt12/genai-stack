@@ -96,9 +96,9 @@ def main():
             username=username,
             password=password,
             embedding=embeddings,
-            index_name="pdf_bot",
-            node_label="PdfBotChunk",
-            pre_delete_collection=True,  # Delete existing PDF data
+            index_name="ask_your_docx",
+            node_label="AskYourDocx",
+            pre_delete_collection=True,  # Delete existing data
         )
         qa = RetrievalQA.from_chain_type(
             llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()

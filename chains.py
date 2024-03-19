@@ -25,6 +25,9 @@ from typing import List, Any
 from utils import BaseLogger, extract_title_and_question
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
+### Required modules for ask_your_docx
+from langchain import hub
+from langchain.chains import RetrievalQA
 
 def load_embedding_model(embedding_model_name: str, logger=BaseLogger(), config={}):
     if embedding_model_name == "ollama":
@@ -235,3 +238,26 @@ def generate_ticket(neo4j_graph, llm_chain, input_question):
     )
     new_title, new_question = extract_title_and_question(llm_response["answer"])
     return (new_title, new_question)
+
+def lc_configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, password, index_name, node_label):
+
+    prompt = hub.pull("rlm/rag-prompt")
+
+    # Vector + Knowledge Graph response
+    kg = Neo4jVector.from_existing_index(
+        embedding=embeddings,
+        url=embeddings_store_url,
+        username=username,
+        password=password,
+        database="neo4j",  # neo4j by default
+        index_name=index_name, #vector by default
+        node_label=node_label
+    )
+
+    kg_qa = RetrievalQA.from_chain_type(
+        llm,
+        retriever=kg.as_retriever(),
+        chain_type_kwargs={"prompt": prompt}
+    )
+
+    return kg_qa
