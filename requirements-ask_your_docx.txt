@@ -1,0 +1,4 @@
+langchain
+langchainhub
+python-docx
+odfpy
