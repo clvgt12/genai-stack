@@ -21,6 +21,6 @@ langchain-google-genai
 # Requirements for ask_your_docx.py
 #
 langchain
-langchain-core
+langchainhub
 python-docx
 odfpy

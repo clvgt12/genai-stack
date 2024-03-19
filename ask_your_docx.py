@@ -11,6 +11,7 @@ from streamlit.logger import get_logger
 from chains import (
     load_embedding_model,
     load_llm,
+    lc_configure_qa_rag_chain,
 )
 
 from docx import Document
@@ -100,9 +101,8 @@ def main():
             node_label="AskYourDocx",
             pre_delete_collection=True,  # Delete existing data
         )
-        qa = RetrievalQA.from_chain_type(
-            llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
-        )
+
+        qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx", "AskYourDocx")
 
         # Accept user questions/query
         query = st.text_input("Ask questions about your document")
