@@ -17,3 +17,10 @@ boto3
 langchain-openai
 langchain-community
 langchain-google-genai
+#
+# Requirements for ask_your_docx.py
+#
+langchain
+langchainhub
+python-docx
+odfpy

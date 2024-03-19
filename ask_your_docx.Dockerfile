@@ -8,13 +8,13 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-ask_your_docx.txt .
+COPY requirements.txt .
 
 # RUN pip install --upgrade -r requirements.txt
-RUN pip install -r requirements.txt -r requirements-ask_your_docx.txt
+RUN pip install -r requirements.txt
 
 COPY ask_your_docx.py .
-# COPY utils.py .
+COPY utils.py .
 COPY chains.py .
 
 EXPOSE 8513
