@@ -23,6 +23,11 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi.middleware.cors import CORSMiddleware
 import json
 
+# Python modules specific to ask_your_docx
+from fastapi import Request
+from typing import Optional
+from chains import lc_configure_qa_rag_chain
+
 load_dotenv(".env")
 
 url = os.getenv("NEO4J_URI")
@@ -118,18 +123,32 @@ class BaseTicket(BaseModel):
 
 
 @app.get("/query-stream")
-def qstream(question: Question = Depends()):
-    output_function = llm_chain
-    if question.rag:
-        output_function = rag_chain
+def qstream(request: Request, question: Question = Depends()):
 
+    # Retrieve the 'app_name' parameter from the query parameters
+    app_name = request.query_params.get("app_name")
+    output_function = llm_chain
     q = Queue()
 
-    def cb():
-        output_function(
-            {"question": question.text, "chat_history": []},
-            callbacks=[QueueCallback(q)],
-        )
+    if app_name is None:
+        if question.rag:
+            output_function = rag_chain
+
+        def cb():
+            output_function(
+                {"question": question.text, "chat_history": []},
+                callbacks=[QueueCallback(q)],
+            )
+
+    elif app_name == "ask_your_docx":
+        if question.rag:
+            qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx")
+
+        def cb():
+            qa.run(question.text, callbacks=[QueueCallback(q)])
+
+    else:
+        pass
 
     def generate():
         yield json.dumps({"init": True, "model": llm_name})
@@ -140,7 +159,11 @@ def qstream(question: Question = Depends()):
 
 
 @app.get("/query")
-async def ask(question: Question = Depends()):
+async def ask(request: Request, question: Question = Depends()):
+
+    # Retrieve the 'app_name' parameter from the query parameters
+    app_name = request.query_params.get("app_name")
+    
     output_function = llm_chain
     if question.rag:
         output_function = rag_chain

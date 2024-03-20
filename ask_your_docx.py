@@ -98,11 +98,11 @@ def main():
             password=password,
             embedding=embeddings,
             index_name="ask_your_docx",
-            node_label="AskYourDocx",
+            node_label="ask_your_docx",
             pre_delete_collection=True,  # Delete existing data
         )
 
-        qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx", "AskYourDocx")
+        qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx")
 
         # Accept user questions/query
         query = st.text_input("Ask questions about your document")

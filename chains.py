@@ -239,7 +239,7 @@ def generate_ticket(neo4j_graph, llm_chain, input_question):
     new_title, new_question = extract_title_and_question(llm_response["answer"])
     return (new_title, new_question)
 
-def lc_configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, password, index_name, node_label):
+def lc_configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, password, app_name):
 
     prompt = hub.pull("rlm/rag-prompt")
 
@@ -250,8 +250,8 @@ def lc_configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, p
         username=username,
         password=password,
         database="neo4j",  # neo4j by default
-        index_name=index_name, #vector by default
-        node_label=node_label
+        index_name=app_name, #vector by default
+        node_label=app_name
     )
 
     kg_qa = RetrievalQA.from_chain_type(
