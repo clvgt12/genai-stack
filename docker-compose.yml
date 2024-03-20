@@ -25,6 +25,9 @@ services:
     environment:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL-http://host.docker.internal:11434}
       - LLM=${LLM-llama2}
+    depends_on:
+      database:
+        condition: service_healthy
     networks:
       - net
     tty: true
