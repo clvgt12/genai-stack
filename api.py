@@ -143,6 +143,8 @@ def qstream(request: Request, question: Question = Depends()):
     elif app_name == "ask_your_docx":
         if question.rag:
             qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx")
+        else:
+            qa = output_function
 
         def cb():
             qa.run(question.text, callbacks=[QueueCallback(q)])
@@ -163,15 +165,27 @@ async def ask(request: Request, question: Question = Depends()):
 
     # Retrieve the 'app_name' parameter from the query parameters
     app_name = request.query_params.get("app_name")
-    
     output_function = llm_chain
-    if question.rag:
-        output_function = rag_chain
-    result = output_function(
-        {"question": question.text, "chat_history": []}, callbacks=[]
-    )
 
-    return {"result": result["answer"], "model": llm_name}
+    if app_name is None:
+        if question.rag:
+            output_function = rag_chain
+        result = output_function(
+            {"question": question.text, "chat_history": []}, callbacks=[]
+        )
+        result = result["answer"]
+
+    elif app_name == "ask_your_docx":
+        if question.rag:
+            qa = lc_configure_qa_rag_chain(llm, embeddings, url, username, password, "ask_your_docx")
+        else:
+            qa = output_function
+        result = qa.run(question.text, callbacks=[])
+
+    else:
+        pass
+
+    return {"result": result, "model": llm_name}
 
 
 @app.get("/generate-ticket")

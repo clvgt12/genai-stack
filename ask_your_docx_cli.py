@@ -38,7 +38,7 @@ def process_query(url, query, output_file):
     """Process a single query and reconstruct the message from tokenized data."""
 
     encoded_query = quote(query)
-    full_url = f"{url}/query-stream?text={encoded_query}&rag=true"
+    full_url = f"{url}/query-stream?text={encoded_query}&rag=true&app_name=ask_your_docx"
     write_output(f">> ", output_file)
     
     try:
