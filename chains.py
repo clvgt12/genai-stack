@@ -25,9 +25,16 @@ from typing import List, Any
 from utils import BaseLogger, extract_title_and_question
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
+# Use Python's logging library
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 ### Required modules for ask_your_docx
-from langchain import hub
+import os
 from langchain.chains import RetrievalQA
+from langchain_core.prompts import ChatPromptTemplate
+from dotenv import load_dotenv
+load_dotenv(".env")
 
 def load_embedding_model(embedding_model_name: str, logger=BaseLogger(), config={}):
     if embedding_model_name == "ollama":
@@ -239,9 +246,23 @@ def generate_ticket(neo4j_graph, llm_chain, input_question):
     new_title, new_question = extract_title_and_question(llm_response["answer"])
     return (new_title, new_question)
 
+def customize_system_prompt():
+
+    prompt = os.getenv("SYSTEM_PROMPT")
+    logger.info(f"Custom system prompt template => ({prompt})")
+    
+    if prompt is not None:
+        template = f"{prompt}:\n{{context}}\n\nQuestion: {{question}}\n"
+    else:
+        template = f"You are a helpful assistant. You can respond to questions based on the context that provided to you below, and your training. If you don't know how to respond, just say that you can not respond based on your current knowledge base. DO NOT try to make up a response, please!\n---\n{{context}}\n\nQuestion: {{question}}\n"
+
+    logger.info(f"Selected prompt template => {template}")
+    prompt = ChatPromptTemplate.from_template(template)
+    return prompt
+
 def lc_configure_qa_rag_chain(llm, embeddings, embeddings_store_url, username, password, app_name):
 
-    prompt = hub.pull("rlm/rag-prompt")
+    prompt = customize_system_prompt()
 
     # Vector + Knowledge Graph response
     kg = Neo4jVector.from_existing_index(

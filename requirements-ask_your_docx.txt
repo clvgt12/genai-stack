@@ -2,6 +2,5 @@
 # Requirements for ask_your_docx.py
 #
 langchain
-langchainhub
 python-docx
 odfpy
