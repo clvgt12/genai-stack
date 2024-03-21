@@ -16,6 +16,7 @@ from chains import (
 
 from docx import Document
 from odf import teletype
+from odf.table import Table, TableRow, TableCell
 from odf.text import P
 from odf.opendocument import load as load_odf
 
@@ -74,11 +75,48 @@ def main():
             # Read in MS Word files
             msword = Document(io.BytesIO(doc.read()))
             text = '\n'.join([paragraph.text for paragraph in msword.paragraphs])
+            # Iterate over each table in the document
+            for table in msword.tables:
+                headers = []  # To store the headers from the first row
+                for row_index, row in enumerate(table.rows):
+                    row_text = []  # To store the formatted text for the current row
+                    for cell_index, cell in enumerate(row.cells):
+                        # If it's the first row, treat it as headers
+                        if row_index == 0:
+                            headers.append(cell.text)
+                        else:
+                            # For subsequent rows, prepend header to the cell text
+                            formatted_text = f"{headers[cell_index]}: {cell.text}"
+                            row_text.append(formatted_text)
+                    # For rows other than the first, add their text to the main text variable
+                    if row_index > 0:
+                        text += '\n' + ', '.join(row_text)
         elif file_type == 'odt':
             # Read in Libre Office Writer ODT files
             odt_doc = load_odf(io.BytesIO(doc.read()))
             paragraphs = odt_doc.getElementsByType(P)
             text = '\n'.join(teletype.extractText(p) for p in paragraphs)
+            # Find all tables in the document
+            tables = odt_doc.getElementsByType(Table)
+            # Iterate over each table
+            for table in tables:
+                headers = []  # To store headers from the first row
+                # Iterate over each row in the table
+                for row_index, row in enumerate(table.getElementsByType(TableRow)):
+                    row_text = []  # To store the text for the current row
+                    # Iterate over each cell in the row
+                    for cell_index, cell in enumerate(row.getElementsByType(TableCell)):
+                        cell_text = ''.join(teletype.extractText(p) for p in cell.getElementsByType(P))
+                        # If it's the first row, treat it as headers
+                        if row_index == 0:
+                            headers.append(cell_text)
+                        else:
+                            # For subsequent rows, prepend header to the cell text
+                            formatted_text = f"{headers[cell_index]}: {cell_text}"
+                            row_text.append(formatted_text)
+                    # For rows other than the first, add their text to the main text variable
+                    if row_index > 0:
+                        text += '\n' + ', '.join(row_text)
         elif file_type in ['txt', 'log']:
             # Read in plain text files
             text = doc.read().decode('utf-8')

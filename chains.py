@@ -249,14 +249,13 @@ def generate_ticket(neo4j_graph, llm_chain, input_question):
 def customize_system_prompt():
 
     prompt = os.getenv("SYSTEM_PROMPT")
-    logger.info(f"Custom system prompt template => ({prompt})")
     
     if prompt is not None:
         template = f"{prompt}:\n{{context}}\n\nQuestion: {{question}}\n"
+        logger.info(f"Selected customized prompt template => {template}")
     else:
         template = f"You are a helpful assistant. You can respond to questions based on the context that provided to you below, and your training. If you don't know how to respond, just say that you can not respond based on your current knowledge base. DO NOT try to make up a response, please!\n---\n{{context}}\n\nQuestion: {{question}}\n"
 
-    logger.info(f"Selected prompt template => {template}")
     prompt = ChatPromptTemplate.from_template(template)
     return prompt
 
