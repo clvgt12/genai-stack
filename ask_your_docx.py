@@ -77,20 +77,24 @@ def main():
             text = '\n'.join([paragraph.text for paragraph in msword.paragraphs])
             # Iterate over each table in the document
             for table in msword.tables:
-                headers = []  # To store the headers from the first row
+                headers = []  # To store the feature labels (FL1, FL2, ..., FLN)
+                category_label = ""  # To store the category label (CL)
+                sentences = []  # To store the constructed sentences
                 for row_index, row in enumerate(table.rows):
-                    row_text = []  # To store the formatted text for the current row
-                    for cell_index, cell in enumerate(row.cells):
-                        # If it's the first row, treat it as headers
-                        if row_index == 0:
-                            headers.append(cell.text)
-                        else:
-                            # For subsequent rows, prepend header to the cell text
-                            formatted_text = f"{headers[cell_index]}: {cell.text}"
-                            row_text.append(formatted_text)
-                    # For rows other than the first, add their text to the main text variable
-                    if row_index > 0:
-                        text += '\n' + ', '.join(row_text)
+                    cell_texts = [cell.text.strip() for cell in row.cells]
+                    if row_index == 0:
+                        category_label = cell_texts[0]  # The first cell of the first row is the category label
+                        headers = cell_texts[1:]  # The rest of the first row are the feature labels
+                    else:
+                        example_label = cell_texts[0]  # The first cell of each subsequent row is the example label
+                        features = cell_texts[1:]  # The rest are the feature values
+                        # Construct the sentence for the current row
+                        sentence_parts = [f"{category_label} {example_label} has the following characteristic(s) "]
+                        sentence_parts.extend([f"{headers[idx]}: {features[idx]}" for idx in range(len(features))])
+                        sentence = ", and ".join(sentence_parts) + "."
+                        sentence = sentence.replace("has the following characteristic(s) , and", "has the following characteristic(s):")
+                        sentences.append(sentence)
+                text += " ".join(sentences) + "\n\n"  # Add two newlines after each table for readability
         elif file_type == 'odt':
             # Read in Libre Office Writer ODT files
             odt_doc = load_odf(io.BytesIO(doc.read()))
@@ -100,23 +104,26 @@ def main():
             tables = odt_doc.getElementsByType(Table)
             # Iterate over each table
             for table in tables:
-                headers = []  # To store headers from the first row
-                # Iterate over each row in the table
+                headers = []  # To store the feature labels (FL1, FL2, ..., FLN)
+                category_label = ""  # To store the category label (CL)
+                sentences = []  # To store the constructed sentences
+                # Iterate over the table's rows
                 for row_index, row in enumerate(table.getElementsByType(TableRow)):
-                    row_text = []  # To store the text for the current row
-                    # Iterate over each cell in the row
-                    for cell_index, cell in enumerate(row.getElementsByType(TableCell)):
-                        cell_text = ''.join(teletype.extractText(p) for p in cell.getElementsByType(P))
-                        # If it's the first row, treat it as headers
-                        if row_index == 0:
-                            headers.append(cell_text)
-                        else:
-                            # For subsequent rows, prepend header to the cell text
-                            formatted_text = f"{headers[cell_index]}: {cell_text}"
-                            row_text.append(formatted_text)
-                    # For rows other than the first, add their text to the main text variable
-                    if row_index > 0:
-                        text += '\n' + ', '.join(row_text)
+                    row_cells = row.getElementsByType(TableCell)
+                    cell_texts = [teletype.extractText(cell.getElementsByType(P)[0]) if cell.getElementsByType(P) else "" for cell in row_cells]
+                    if row_index == 0:
+                        category_label = cell_texts[0]  # The first cell of the first row is the category label
+                        headers = cell_texts[1:]  # The rest of the first row are the feature labels
+                    else:
+                        example_label = cell_texts[0]  # The first cell of each subsequent row is the example label
+                        features = cell_texts[1:]  # The rest are the feature values
+                        # Construct the sentence for the current row
+                        sentence_parts = [f"{category_label} {example_label} has the following characteristic(s) "]
+                        sentence_parts.extend([f"{headers[idx]}: {feat}" for idx, feat in enumerate(features)])
+                        sentence = ", and ".join(sentence_parts) + "."
+                        sentence = sentence.replace("has the following characteristic(s) , and", "has the following characteristic(s):")
+                        sentences.append(sentence)
+                text += " ".join(sentences) + "\n\n"  # Add two newlines after each table for readability
         elif file_type in ['txt', 'log']:
             # Read in plain text files
             text = doc.read().decode('utf-8')
