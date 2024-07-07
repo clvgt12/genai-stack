@@ -5,5 +5,5 @@ embedding_model/*
 .DS_Store
 experiments/*
 test.txt
-reset.sh
+start.sh
 drop.sh
